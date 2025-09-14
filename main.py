@@ -14,6 +14,8 @@ from typing import Optional
 from models.person import PersonCreate, PersonRead, PersonUpdate
 from models.address import AddressCreate, AddressRead, AddressUpdate
 from models.health import Health
+from models.exercise import ExerciseCreate, ExerciseRead, ExerciseUpdate
+from models.workout import WorkoutCreate, WorkoutRead, WorkoutUpdate
 
 port = int(os.environ.get("FASTAPIPORT", 8000))
 
@@ -22,10 +24,12 @@ port = int(os.environ.get("FASTAPIPORT", 8000))
 # -----------------------------------------------------------------------------
 persons: Dict[UUID, PersonRead] = {}
 addresses: Dict[UUID, AddressRead] = {}
+exercises: Dict[UUID, ExerciseRead] = {}
+workouts: Dict[UUID, WorkoutRead] = {}
 
 app = FastAPI(
-    title="Person/Address API",
-    description="Demo FastAPI app using Pydantic v2 models for Person and Address",
+    title="Person/Address/Exercise/Workout API",
+    description="Demo FastAPI app using Pydantic v2 models for Person, Address, Exercise, and Workout",
     version="0.1.0",
 )
 
@@ -101,6 +105,62 @@ def update_address(address_id: UUID, update: AddressUpdate):
     return addresses[address_id]
 
 # -----------------------------------------------------------------------------
+# Exercise endpoints
+# -----------------------------------------------------------------------------
+@app.post("/exercises", response_model=ExerciseRead, status_code=201)
+def create_exercise(exercise: ExerciseCreate):
+    exercise_read = ExerciseRead(**exercise.model_dump())
+    exercises[exercise_read.id] = exercise_read
+    return exercise_read
+
+@app.get("/exercises", response_model=List[ExerciseRead])
+def list_exercises(
+    name: Optional[str] = Query(None, description="Filter by exercise name"),
+    muscle_group: Optional[str] = Query(None, description="Filter by muscle group"),
+    equipment: Optional[str] = Query(None, description="Filter by equipment"),
+    difficulty: Optional[str] = Query(None, description="Filter by difficulty level"),
+):
+    results = list(exercises.values())
+
+    if name is not None:
+        results = [e for e in results if e.name == name]
+    if muscle_group is not None:
+        results = [e for e in results if e.muscle_group == muscle_group]
+    if equipment is not None:
+        results = [e for e in results if e.equipment == equipment]
+    if difficulty is not None:
+        results = [e for e in results if e.difficulty == difficulty]
+
+    return results
+
+@app.get("/exercises/{exercise_id}", response_model=ExerciseRead)
+def get_exercise(exercise_id: UUID):
+    if exercise_id not in exercises:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    return exercises[exercise_id]
+
+@app.put("/exercises/{exercise_id}", response_model=ExerciseRead)
+def replace_exercise(exercise_id: UUID, exercise: ExerciseCreate):
+    exercises[exercise_id] = ExerciseRead(**exercise.model_dump())
+    return exercises[exercise_id]
+
+@app.patch("/exercises/{exercise_id}", response_model=ExerciseRead)
+def update_exercise(exercise_id: UUID, update: ExerciseUpdate):
+    if exercise_id not in exercises:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    stored = exercises[exercise_id].model_dump()
+    stored.update(update.model_dump(exclude_unset=True))
+    exercises[exercise_id] = ExerciseRead(**stored)
+    return exercises[exercise_id]
+
+@app.delete("/exercises/{exercise_id}")
+def delete_exercise(exercise_id: UUID):
+    if exercise_id not in exercises:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    del exercises[exercise_id]
+    return {"message": "Exercise deleted successfully"}
+
+# -----------------------------------------------------------------------------
 # Person endpoints
 # -----------------------------------------------------------------------------
 @app.post("/persons", response_model=PersonRead, status_code=201)
@@ -160,11 +220,64 @@ def update_person(person_id: UUID, update: PersonUpdate):
     return persons[person_id]
 
 # -----------------------------------------------------------------------------
+# Workout endpoints
+# -----------------------------------------------------------------------------
+@app.post("/workouts", response_model=WorkoutRead, status_code=201)
+def create_workout(workout: WorkoutCreate):
+    workout_read = WorkoutRead(**workout.model_dump())
+    workouts[workout_read.id] = workout_read
+    return workout_read
+
+@app.get("/workouts", response_model=List[WorkoutRead])
+def list_workouts(
+    user_name: Optional[str] = Query(None, description="Filter by user name"),
+    workout_date: Optional[str] = Query(None, description="Filter by date (YYYY-MM-DD)"),
+    duration_minutes: Optional[int] = Query(None, description="Filter by minimum duration"),
+):
+    results = list(workouts.values())
+
+    if user_name is not None:
+        results = [w for w in results if w.user_name == user_name]
+    if workout_date is not None:
+        results = [w for w in results if str(w.workout_date) == workout_date]
+    if duration_minutes is not None:
+        results = [w for w in results if w.duration_minutes and w.duration_minutes >= duration_minutes]
+
+    return results
+
+@app.get("/workouts/{workout_id}", response_model=WorkoutRead)
+def get_workout(workout_id: UUID):
+    if workout_id not in workouts:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return workouts[workout_id]
+
+@app.put("/workouts/{workout_id}", response_model=WorkoutRead)
+def replace_workout(workout_id: UUID, workout: WorkoutCreate):
+    workouts[workout_id] = WorkoutRead(**workout.model_dump())
+    return workouts[workout_id]
+
+@app.patch("/workouts/{workout_id}", response_model=WorkoutRead)
+def update_workout(workout_id: UUID, update: WorkoutUpdate):
+    if workout_id not in workouts:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    stored = workouts[workout_id].model_dump()
+    stored.update(update.model_dump(exclude_unset=True))
+    workouts[workout_id] = WorkoutRead(**stored)
+    return workouts[workout_id]
+
+@app.delete("/workouts/{workout_id}")
+def delete_workout(workout_id: UUID):
+    if workout_id not in workouts:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    del workouts[workout_id]
+    return {"message": "Workout deleted successfully"}
+
+# -----------------------------------------------------------------------------
 # Root
 # -----------------------------------------------------------------------------
 @app.get("/")
 def root():
-    return {"message": "Welcome to the Person/Address API. See /docs for OpenAPI UI."}
+    return {"message": "Welcome to the Person/Address/Exercise/Workout API. See /docs for OpenAPI UI."}
 
 # -----------------------------------------------------------------------------
 # Entrypoint for `python main.py`
